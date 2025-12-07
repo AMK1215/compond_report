@@ -55,7 +55,7 @@ return new class extends Migration
             // Add before_balance and after_balance if you want to explicitly store them here
             $table->decimal('before_balance', 20, 4)->nullable();
             $table->decimal('balance', 20, 4)->nullable();
-            $table->unsignedBigInteger('game_type_id')->nullable();// always 15 here, but keep column
+            $table->unsignedBigInteger('game_type_id')->default(15);// always 15 here, but keep column
             $table->json('players')->nullable();                   // stores $callbackPlayers array
             $table->decimal('banker_balance', 20, 4)->nullable();  // banker->wallet->balanceFloat
             $table->timestampTz('timestamp')->nullable();          // ISO8601 UTC timestamp
