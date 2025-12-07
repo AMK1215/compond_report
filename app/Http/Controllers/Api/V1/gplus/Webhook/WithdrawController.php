@@ -61,9 +61,9 @@ class WithdrawController extends Controller
                 'request_time' => 'required|integer',
                 'currency' => 'required|string',
             ]);
-            Log::info('Withdraw API Request', ['request' => $request->all()]);
+            // Log::info('Withdraw API Request', ['request' => $request->all()]);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::warning('Withdraw API Validation Failed', ['errors' => $e->errors()]);
+            // Log::warning('Withdraw API Validation Failed', ['errors' => $e->errors()]);
 
             return ApiResponseService::error(
                 SeamlessWalletCode::InternalServerError,
@@ -109,7 +109,7 @@ class WithdrawController extends Controller
         $responseData = [];
 
         foreach ($request->batch_requests as $batchRequest) {
-            Log::info('Withdraw Batch Request', ['batchRequest' => $batchRequest]);
+            // Log::info('Withdraw Batch Request', ['batchRequest' => $batchRequest]);
 
             $memberAccount = $batchRequest['member_account'] ?? null;
             $productCode = $batchRequest['product_code'] ?? null;
@@ -117,14 +117,14 @@ class WithdrawController extends Controller
 
             // Handle batch-level errors (invalid signature or currency)
             if (! $isValidSign) {
-                Log::warning('Invalid signature for batch', ['member_account' => $memberAccount, 'provided' => $request->sign, 'expected' => $expectedSign]);
+                // Log::warning('Invalid signature for batch', ['member_account' => $memberAccount, 'provided' => $request->sign, 'expected' => $expectedSign]);
                 $responseData[] = $this->buildErrorResponse($memberAccount, $productCode, 0.0, SeamlessWalletCode::InvalidSignature, 'Invalid signature', $request->currency);
 
                 continue;
             }
 
             if (! $isValidCurrency) {
-                Log::warning('Invalid currency for batch', ['member_account' => $memberAccount, 'currency' => $request->currency]);
+                // Log::warning('Invalid currency for batch', ['member_account' => $memberAccount, 'currency' => $request->currency]);
                 $responseData[] = $this->buildErrorResponse($memberAccount, $productCode, 0.0, SeamlessWalletCode::InternalServerError, 'Invalid Currency', $request->currency);
 
                 continue;
@@ -134,14 +134,14 @@ class WithdrawController extends Controller
                 $user = User::where('user_name', $memberAccount)->first();
 
                 if (! $user) {
-                    Log::warning('Member not found for withdraw/bet request', ['member_account' => $memberAccount]);
+                    // Log::warning('Member not found for withdraw/bet request', ['member_account' => $memberAccount]);
                     $responseData[] = $this->buildErrorResponse($memberAccount, $productCode, 0.00, SeamlessWalletCode::MemberNotExist, 'Member not found', $request->currency);
 
                     continue;
                 }
 
                 if (! $user->wallet) {
-                    Log::warning('Wallet missing for member during withdraw/bet request', ['member_account' => $memberAccount]);
+                    // Log::warning('Wallet missing for member during withdraw/bet request', ['member_account' => $memberAccount]);
                     $responseData[] = $this->buildErrorResponse($memberAccount, $productCode, 0.00, SeamlessWalletCode::MemberNotExist, 'Member wallet missing', $request->currency);
 
                     continue;
@@ -164,12 +164,12 @@ class WithdrawController extends Controller
                     }
 
                     if (empty($transactionGameType)) {
-                        Log::warning('Missing game_type from batch_request and fallback lookup for withdraw', [
-                            'member_account' => $memberAccount,
-                            'product_code' => $productCode,
-                            'game_code' => $gameCode,
-                            'transaction_id' => $transactionId,
-                        ]);
+                        // Log::warning('Missing game_type from batch_request and fallback lookup for withdraw', [
+                        //     'member_account' => $memberAccount,
+                        //     'product_code' => $productCode,
+                        //     'game_code' => $gameCode,
+                        //     'transaction_id' => $transactionId,
+                        // ]);
                         $responseData[] = $this->buildErrorResponse(
                             $memberAccount,
                             $productCode,
@@ -185,7 +185,7 @@ class WithdrawController extends Controller
 
                     // Check for crucial missing data for an individual transaction
                     if (! $transactionId || empty($action)) { // Amount can be 0 or negative for certain actions
-                        Log::warning('Missing crucial data in transaction for withdraw/bet', ['tx' => $tx]);
+                        // Log::warning('Missing crucial data in transaction for withdraw/bet', ['tx' => $tx]);
                         $this->logPlaceBet($batchRequest, $request, $tx, 'failed', $request->request_time, 'Missing transaction data (id or action)', $currentBalance, $currentBalance);
                         $responseData[] = $this->buildErrorResponse($memberAccount, $productCode, $currentBalance, SeamlessWalletCode::InternalServerError, 'Missing transaction data (id or action)', $request->currency);
 
@@ -213,7 +213,7 @@ class WithdrawController extends Controller
                                    WalletTransaction::whereJsonContains('meta->seamless_transaction_id', $transactionId)->exists();
 
                     if ($isDuplicate) {
-                        Log::warning('Duplicate transaction ID detected for withdraw/bet', ['tx_id' => $transactionId, 'member_account' => $memberAccount, 'action' => $action]);
+                        // Log::warning('Duplicate transaction ID detected for withdraw/bet', ['tx_id' => $transactionId, 'member_account' => $memberAccount, 'action' => $action]);
                         $this->logPlaceBet($batchRequest, $request, $tx, 'duplicate', $request->request_time, 'Duplicate transaction', $currentBalance, $currentBalance);
                         $responseData[] = $this->buildErrorResponse($memberAccount, $productCode, $currentBalance, SeamlessWalletCode::DuplicateTransaction, 'Duplicate transaction', $request->currency);
 
@@ -222,7 +222,7 @@ class WithdrawController extends Controller
 
                     // Ensure action is a valid debit action for this controller
                     if (! in_array($action, $this->debitActions)) {
-                        Log::warning('Unsupported action type received on withdraw endpoint', ['transaction_id' => $transactionId, 'action' => $action]);
+                        // Log::warning('Unsupported action type received on withdraw endpoint', ['transaction_id' => $transactionId, 'action' => $action]);
                         $this->logPlaceBet($batchRequest, $request, $tx, 'failed', $request->request_time, 'Unsupported action type for this endpoint: '.$action, $currentBalance, $currentBalance);
                         $responseData[] = $this->buildErrorResponse($memberAccount, $productCode, $currentBalance, SeamlessWalletCode::InternalServerError, 'Unsupported action type: '.$action, $request->currency);
 
@@ -244,13 +244,13 @@ class WithdrawController extends Controller
 
                         $beforeTransactionBalance = $userWithWallet->wallet->balanceFloat;
 
-                        Log::info('Withdraw Debug', [
-                            'before_balance' => $beforeTransactionBalance,
-                            'converted_amount' => $convertedAmount,
-                            'raw_amount' => $amount,
-                            'currency' => $request->currency,
-                            'member_account' => $memberAccount,
-                        ]);
+                        // Log::info('Withdraw Debug', [
+                        //     'before_balance' => $beforeTransactionBalance,
+                        //     'converted_amount' => $convertedAmount,
+                        //     'raw_amount' => $amount,
+                        //     'currency' => $request->currency,
+                        //     'member_account' => $memberAccount,
+                        // ]);
 
                         // 1. Check for insufficient balance BEFORE any withdrawal!
                         if ($beforeTransactionBalance < $convertedAmount) {
@@ -339,14 +339,14 @@ class WithdrawController extends Controller
                         DB::rollBack();
                         $transactionCode = SeamlessWalletCode::InsufficientBalance->value;
                         $transactionMessage = 'Insufficient balance: '.$e->getMessage();
-                        Log::warning('Insufficient Funds for withdraw/bet', ['transaction_id' => $transactionId, 'member_account' => $memberAccount, 'amount' => $amount, 'error' => $e->getMessage()]);
+                        // Log::warning('Insufficient Funds for withdraw/bet', ['transaction_id' => $transactionId, 'member_account' => $memberAccount, 'amount' => $amount, 'error' => $e->getMessage()]);
                         $this->logPlaceBet($batchRequest, $request, $tx, 'failed', $request->request_time, $transactionMessage, $beforeTransactionBalance ?? $user->balanceFloat, $currentBalance);
 
                     } catch (Exception $e) { // Catch all other exceptions
                         DB::rollBack();
                         $transactionCode = SeamlessWalletCode::InternalServerError->value;
                         $transactionMessage = 'Failed to process transaction: '.$e->getMessage();
-                        Log::error('Error processing withdraw/bet transaction', ['transaction_id' => $transactionId, 'action' => $action, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+                        // Log::error('Error processing withdraw/bet transaction', ['transaction_id' => $transactionId, 'action' => $action, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
                         $this->logPlaceBet($batchRequest, $request, $tx, 'failed', $request->request_time, $transactionMessage, $beforeTransactionBalance ?? $user->balanceFloat, $currentBalance);
                     }
 
@@ -362,7 +362,7 @@ class WithdrawController extends Controller
                 }
             } catch (\Throwable $e) {
                 // Catch any exception that might occur outside the inner transaction loop (e.g., user lookup failures)
-                Log::error('Batch processing exception for member in WithdrawController', ['member_account' => $memberAccount, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+                // Log::error('Batch processing exception for member in WithdrawController', ['member_account' => $memberAccount, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
                 // This error applies to the entire batch, so we add a generic error for it
                 $responseData[] = $this->buildErrorResponse(
                     $memberAccount,
@@ -506,14 +506,48 @@ class WithdrawController extends Controller
                 'balance' => $afterBalance,
                 'error_message' => $errorMessage,
             ]);
+
+            // main report create here
+            MainReport::create([
+                'transaction_id' => $transactionRequest['id'] ?? '',
+                'member_account' => $batchRequest['member_account'] ?? '',
+                'player_id' => $playerId,
+                'player_agent_id' => $playerAgentId,
+                'product_code' => $batchRequest['product_code'] ?? 0,
+                'provider_name' => $providerName ?? $batchRequest['product_code'] ?? null,
+                'game_type' => $batchRequest['game_type'] ?? '',
+                'operator_code' => $fullRequest->operator_code,
+                'request_time' => $requestTimeInSeconds ? now()->setTimestamp($requestTimeInSeconds) : null,
+                'sign' => $fullRequest->sign,
+                'currency' => $fullRequest->currency,
+                'action' => $transactionRequest['action'] ?? '',
+                'amount' => $transactionRequest['amount'] ?? 0,
+                'valid_bet_amount' => $transactionRequest['valid_bet_amount'] ?? null,
+                'bet_amount' => $transactionRequest['bet_amount'] ?? null,
+                'prize_amount' => $transactionRequest['prize_amount'] ?? null,
+                'tip_amount' => $transactionRequest['tip_amount'] ?? null,
+                'wager_code' => $transactionRequest['wager_code'] ?? null,
+                'wager_status' => $transactionRequest['wager_status'] ?? null,
+                'round_id' => $transactionRequest['round_id'] ?? null,
+                'payload' => isset($transactionRequest['payload']) ? json_encode($transactionRequest['payload']) : null,
+                'settle_at' => $settleAtInSeconds ? now()->setTimestamp($settleAtInSeconds) : null,
+                'created_at_provider' => $createdAtProviderInSeconds ? now()->setTimestamp($createdAtProviderInSeconds) : null,
+                'game_code' => $transactionRequest['game_code'] ?? null,
+                'game_name' => $gameName ?? $transactionRequest['game_code'] ?? null,
+                'channel_code' => $transactionRequest['channel_code'] ?? null,
+                'status' => $status,
+                'before_balance' => $beforeBalance,
+                'balance' => $afterBalance,
+                //'error_message' => $errorMessage,
+            ]);
         } catch (QueryException $e) {
             // MySQL: 23000, PostgreSQL: 23505 for unique constraint violation
             if (in_array($e->getCode(), ['23000', '23505'])) {
-                Log::warning('Duplicate transaction detected when logging to PlaceBet, preventing re-insertion.', [
-                    'transaction_id' => $transactionRequest['id'] ?? '',
-                    'member_account' => $batchRequest['member_account'] ?? '',
-                    'error' => $e->getMessage(),
-                ]);
+                // Log::warning('Duplicate transaction detected when logging to PlaceBet, preventing re-insertion.', [
+                //     'transaction_id' => $transactionRequest['id'] ?? '',
+                //     'member_account' => $batchRequest['member_account'] ?? '',
+                //     'error' => $e->getMessage(),
+                // ]);
             } else {
                 throw $e; // Re-throw other database exceptions
             }

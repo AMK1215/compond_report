@@ -24,16 +24,16 @@ return new class extends Migration
         Schema::create('main_reports', function (Blueprint $table) {
             $table->bigIncrements('id');
             // Batch-level data
-            $table->string('member_account');
+            $table->string('member_account')->nullable();
             $table->unsignedBigInteger('player_id')->nullable();
             $table->unsignedBigInteger('player_agent_id')->nullable();
-            $table->unsignedBigInteger('product_code');
+            $table->unsignedBigInteger('product_code')->nullable();
             $table->string('provider_name')->nullable();
-            $table->string('game_type');
-            $table->string('operator_code');
+            $table->string('game_type')->nullable();
+            $table->string('operator_code')->nullable();
             $table->timestamp('request_time')->nullable();
-            $table->string('sign');
-            $table->string('currency');
+            $table->string('sign')->nullable();
+            $table->string('currency')->nullable();
 
             // Transaction-level data
             $table->string('transaction_id')->unique();
@@ -55,27 +55,27 @@ return new class extends Migration
             // Add before_balance and after_balance if you want to explicitly store them here
             $table->decimal('before_balance', 20, 4)->nullable();
             $table->decimal('balance', 20, 4)->nullable();
-            $table->unsignedBigInteger('game_type_id');// always 15 here, but keep column
-            $table->json('players');                   // stores $callbackPlayers array
-            $table->decimal('banker_balance', 15, 2);  // banker->wallet->balanceFloat
-            $table->timestampTz('timestamp');          // ISO8601 UTC timestamp
-            $table->decimal('total_player_net', 15, 2);// $trueTotalPlayerNet
-            $table->decimal('banker_amount_change', 15, 2); // $bankerAmountChange
+            $table->unsignedBigInteger('game_type_id')->nullable();// always 15 here, but keep column
+            $table->json('players')->nullable();                   // stores $callbackPlayers array
+            $table->decimal('banker_balance', 20, 4)->nullable();  // banker->wallet->balanceFloat
+            $table->timestampTz('timestamp')->nullable();          // ISO8601 UTC timestamp
+            $table->decimal('total_player_net', 20, 4)->nullable();// $trueTotalPlayerNet
+            $table->decimal('banker_amount_change', 20, 4)->nullable(); // $bankerAmountChange
             $table->string('agent_name')->nullable();
 
             // Game Information
-            $table->integer('room_id');
-            $table->string('match_id'); // Remove unique constraint since multiple bets per match
-            $table->integer('win_number');
+            $table->integer('room_id')->nullable();
+            $table->string('match_id')->nullable(); // Remove unique constraint since multiple bets per match
+            $table->integer('win_number')->nullable();
             
             // Player Information
-            $table->unsignedBigInteger('user_id'); // user table ID
+            $table->unsignedBigInteger('user_id')->nullable(); // user table ID
             // Bet Information
-            $table->integer('bet_number'); // The number player bet on
+            $table->integer('bet_number')->nullable(); // The number player bet on
             
             // Result Information
-            $table->decimal('win_lose_amount', 15, 2); // Win/Loss amount
-            $table->enum('result', ['Win', 'Lose', 'Draw']);
+            $table->decimal('win_lose_amount', 15, 2)->nullable(); // Win/Loss amount
+            $table->enum('result', ['Win', 'Lose', 'Draw'])->nullable();
 
             // slot, buffalo, ponewine, shan
             $table->enum('report_game_type', ['gscs_slot', 'buffalo', 'ponewine', 'shan'])->nullable();
