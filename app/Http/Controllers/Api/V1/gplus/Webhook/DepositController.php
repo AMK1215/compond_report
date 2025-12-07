@@ -372,8 +372,16 @@ class DepositController extends Controller
         $playerId = User::where('user_name', $batchRequest['member_account'])->value('id');
         $playerAgentId = User::where('user_name', $batchRequest['member_account'])->value('agent_id');
 
+        $transactionId = $transactionRequest['id'] ?? '';
+        
+        // Check if transaction already exists to avoid duplicate insert
+        $existingPlaceBet = PlaceBet::where('transaction_id', $transactionId)->first();
+        $existingMainReport = MainReport::where('transaction_id', $transactionId)->first();
+
         try {
-            PlaceBet::create([
+            // Only create PlaceBet if it doesn't exist
+            if (!$existingPlaceBet) {
+                PlaceBet::create([
                 'transaction_id' => $transactionRequest['id'] ?? '',
                 'member_account' => $batchRequest['member_account'] ?? '',
                 'player_id' => $playerId,
@@ -404,10 +412,12 @@ class DepositController extends Controller
                 'before_balance' => $beforeBalance,
                 'balance' => $afterBalance,
                 // 'error_message' => $errorMessage,
-            ]);
+                ]);
+            }
 
-            // main report create here
-            MainReport::create([
+            // Only create MainReport if it doesn't exist
+            if (!$existingMainReport) {
+                MainReport::create([
                 'transaction_id' => $transactionRequest['id'] ?? '',
                 'member_account' => $batchRequest['member_account'] ?? '',
                 'player_id' => $playerId,
@@ -438,11 +448,12 @@ class DepositController extends Controller
                 'before_balance' => $beforeBalance,
                 'balance' => $afterBalance,
                 //'error_message' => $errorMessage,
-            ]);
+                ]);
+            }
         } catch (QueryException $e) {
             if (in_array($e->getCode(), ['23000', '23505'])) { // SQLSTATE for unique constraint violation
-                Log::warning('Duplicate transaction detected when logging to PlaceBet, preventing re-insertion.', [
-                    'transaction_id' => $transactionRequest['id'] ?? '',
+                Log::warning('Duplicate transaction detected when logging to PlaceBet/MainReport, preventing re-insertion.', [
+                    'transaction_id' => $transactionId,
                     'member_account' => $batchRequest['member_account'] ?? '',
                     'error' => $e->getMessage(),
                 ]);

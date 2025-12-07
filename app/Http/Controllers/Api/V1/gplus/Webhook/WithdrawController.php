@@ -274,56 +274,7 @@ class WithdrawController extends Controller
 
                             continue;
                         }
-                        // Handle actions that represent debits
-                        // if ($action === 'BET' || $action === 'ADJUST_DEBIT' || $action === 'WITHDRAW' || $action === 'FEE') {
-                        //     if ($convertedAmount <= 0) {
-                        //         Log::warning('Zero or negative amount for debit action, skipping wallet withdraw but logging.', ['transaction_id' => $transactionId, 'action' => $action, 'amount' => $amount]);
-                        //         $transactionMessage = 'Debit action with zero/negative amount.';
-                        //         $this->logPlaceBet($batchRequest, $request, $tx, 'info', $request->request_time, $transactionMessage, $beforeTransactionBalance, $beforeTransactionBalance);
-                        //         DB::commit();
-                        //         $responseData[] = [
-                        //             'member_account' => $memberAccount,
-                        //             'product_code' => (int) $productCode,
-                        //             'before_balance' => $this->formatBalance($beforeTransactionBalance, $request->currency),
-                        //             'balance' => $this->formatBalance($beforeTransactionBalance, $request->currency), // Balance doesn't change
-                        //             'code' => SeamlessWalletCode::Success->value, // Still success for processing the request
-                        //             'message' => 'Processed with zero amount, no balance change.',
-                        //         ];
-
-                        //         continue;
-                        //     }
-
-                        //     // if ($userWithWallet->balanceFloat < $convertedAmount) {
-                        //     //     $transactionCode = SeamlessWalletCode::InsufficientBalance->value;
-                        //     //     $transactionMessage = 'Insufficient balance';
-                        //     //     $this->logPlaceBet($batchRequest, $request, $tx, 'failed', $request->request_time, $transactionMessage, $beforeTransactionBalance, $beforeTransactionBalance);
-
-                        //     //     DB::commit(); // or DB::rollBack(); as nothing has changed
-                        //     //     $responseData[] = [
-                        //     //         'member_account'   => $memberAccount,
-                        //     //         'product_code'     => (int) $productCode,
-                        //     //         'before_balance'   => $this->formatBalance($beforeTransactionBalance, $request->currency),
-                        //     //         'balance'          => $this->formatBalance($beforeTransactionBalance, $request->currency),
-                        //     //         'code'             => $transactionCode,
-                        //     //         'message'          => $transactionMessage,
-                        //     //     ];
-
-                        //     //     continue; // Do NOT try to withdraw, just go to the next transaction!
-                        //     // }
-
-                        //     // Perform the withdrawal
-                        //     $this->walletService->withdraw($userWithWallet, $convertedAmount, TransactionName::Withdraw, $meta);
-                        //     $newBalance = $userWithWallet->wallet->balanceFloat;
-
-                        //     $transactionCode = SeamlessWalletCode::Success->value;
-                        //     $transactionMessage = 'Transaction processed successfully';
-                        //     $this->logPlaceBet($batchRequest, $request, $tx, 'completed', $request->request_time, $transactionMessage, $beforeTransactionBalance, $newBalance);
-
-                        // } else {
-                        //     // This block should ideally not be reached if $this->debitActions is comprehensive
-                        //     // and the check before DB::beginTransaction() is effective.
-                        //     throw new Exception('Unhandled debit action type: '.$action);
-                        // }
+                        
 
                         // Perform the withdrawal
                         $this->walletService->withdraw($userWithWallet, $convertedAmount, TransactionName::Withdraw, $meta);
@@ -474,8 +425,16 @@ class WithdrawController extends Controller
         $playerId = User::where('user_name', $batchRequest['member_account'])->value('id');
         $playerAgentId = User::where('user_name', $batchRequest['member_account'])->value('agent_id');
 
+        $transactionId = $transactionRequest['id'] ?? '';
+        
+        // Check if transaction already exists to avoid duplicate insert
+        $existingPlaceBet = PlaceBet::where('transaction_id', $transactionId)->first();
+        $existingMainReport = MainReport::where('transaction_id', $transactionId)->first();
+
         try {
-            PlaceBet::create([
+            // Only create PlaceBet if it doesn't exist
+            if (!$existingPlaceBet) {
+                PlaceBet::create([
                 'transaction_id' => $transactionRequest['id'] ?? '',
                 'member_account' => $batchRequest['member_account'] ?? '',
                 'player_id' => $playerId,
@@ -506,10 +465,12 @@ class WithdrawController extends Controller
                 'before_balance' => $beforeBalance,
                 'balance' => $afterBalance,
                 'error_message' => $errorMessage,
-            ]);
+                ]);
+            }
 
-            // main report create here
-            MainReport::create([
+            // Only create MainReport if it doesn't exist
+            if (!$existingMainReport) {
+                MainReport::create([
                 'transaction_id' => $transactionRequest['id'] ?? '',
                 'member_account' => $batchRequest['member_account'] ?? '',
                 'player_id' => $playerId,
@@ -540,15 +501,16 @@ class WithdrawController extends Controller
                 'before_balance' => $beforeBalance,
                 'balance' => $afterBalance,
                 //'error_message' => $errorMessage,
-            ]);
+                ]);
+            }
         } catch (QueryException $e) {
             // MySQL: 23000, PostgreSQL: 23505 for unique constraint violation
             if (in_array($e->getCode(), ['23000', '23505'])) {
-                // Log::warning('Duplicate transaction detected when logging to PlaceBet, preventing re-insertion.', [
-                //     'transaction_id' => $transactionRequest['id'] ?? '',
-                //     'member_account' => $batchRequest['member_account'] ?? '',
-                //     'error' => $e->getMessage(),
-                // ]);
+                Log::warning('Duplicate transaction detected when logging to PlaceBet/MainReport, preventing re-insertion.', [
+                    'transaction_id' => $transactionId,
+                    'member_account' => $batchRequest['member_account'] ?? '',
+                    'error' => $e->getMessage(),
+                ]);
             } else {
                 throw $e; // Re-throw other database exceptions
             }
